@@ -24,7 +24,7 @@ func DBCommand() *cobra.Command {
 				os.Exit(1)
 			}
 
-			command := exec.Command("docker", "exec", "-it", dbContainerName, "/bin/bash", "-c", "mysql -uroot -paspen aspen")
+			command := exec.Command("docker", "exec", "-it", dbContainerName, "/bin/bash", "-c", "mariadb -uroot -paspen aspen")
 			command.Dir = fmt.Sprintf(projectsDir)
 			command.Stdin = os.Stdin
 			command.Stdout = os.Stdout
