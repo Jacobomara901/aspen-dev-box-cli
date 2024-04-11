@@ -11,9 +11,12 @@ import (
 func init() {
 	rootCmd.AddCommand(UpCommand())
 }
-
 func UpCommand() *cobra.Command {
-	return &cobra.Command{
+	var detached bool
+	var debugging bool
+	var dbgui bool
+
+	cmd := &cobra.Command{
 		Use:   "up",
 		Short: "Bring up the Docker Compose project",
 		Run: func(cmd *cobra.Command, args []string) {
@@ -23,8 +26,29 @@ func UpCommand() *cobra.Command {
 				os.Exit(1)
 			}
 
+			commandArgs := []string{"compose"}
+
 			composeFile := fmt.Sprintf("%s/docker-compose.yml", projectsDir)
-			command := exec.Command("docker", "compose", "-f", composeFile, "up", "-d")
+			commandArgs = append(commandArgs, "-f", composeFile)
+
+			if debugging {
+				composeFile = fmt.Sprintf("%s/docker-compose.debug.yml", projectsDir)
+				commandArgs = append(commandArgs, "-f", composeFile)
+			}
+
+			if dbgui {
+				composeFile = fmt.Sprintf("%s/docker-compose.dbgui.yml", projectsDir)
+				commandArgs = append(commandArgs, "-f", composeFile)
+			}
+
+			commandArgs = append(commandArgs, "up")
+
+			if detached {
+				commandArgs = append(commandArgs, "-d")
+			}
+
+			command := exec.Command("docker", commandArgs...)
+
 			command.Stdout = os.Stdout
 			command.Stderr = os.Stderr
 
@@ -35,4 +59,10 @@ func UpCommand() *cobra.Command {
 			}
 		},
 	}
+
+	cmd.Flags().BoolVarP(&detached, "detached", "d", false, "Run in detached mode")
+	cmd.Flags().BoolVarP(&debugging, "debugging", "g", false, "Run with debugging compose file")
+	cmd.Flags().BoolVarP(&dbgui, "dbgui", "b", false, "Run with dbgui compose file")
+
+	return cmd
 }
