@@ -24,7 +24,7 @@ func DownCommand() *cobra.Command {
 			}
 
 			composeFile := fmt.Sprintf("%s/docker-compose.yml", projectsDir)
-			command := exec.Command("docker", "compose", "-f", composeFile, "down")
+			command := exec.Command("docker", "compose", "-f", composeFile, "down", "--remove-orphans")
 			command.Stdout = os.Stdout
 			command.Stderr = os.Stderr
 
