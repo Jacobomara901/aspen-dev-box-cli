@@ -13,7 +13,7 @@ func init() {
 }
 
 func OAuthCommand() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "oauth <client_id> <client_secret>",
 		Short: "Update the OAuth client ID and secret for Koha ils logins for ADB",
 		Args:  cobra.ExactArgs(2),
@@ -22,9 +22,31 @@ func OAuthCommand() *cobra.Command {
 			oAuthClientId := args[0]
 			oAuthClientSecret := args[1]
 
-			sql := fmt.Sprintf("UPDATE account_profiles SET oAuthClientId='%s', oAuthClientSecret='%s' WHERE driver='Koha'", oAuthClientId, oAuthClientSecret)
+			print, _ := cmd.Flags().GetBool("print")
+			driver, _ := cmd.Flags().GetString("driver")
+			if driver == "" {
+				driver = "Koha"
+			}
 
-			command := exec.Command("docker", "exec", "-it", dbContainerName, "/bin/bash", "-c", fmt.Sprintf("echo \"%s\" | mariadb -uroot -paspen aspen", sql))
+			sql := fmt.Sprintf(`
+			SET @update_count = 0;
+			UPDATE account_profiles 
+			SET oAuthClientId='%s', 
+			oAuthClientSecret='%s' 
+			WHERE driver='%s';
+			SET @update_count = ROW_COUNT();
+
+			SELECT @update_count as Changed_Rows;
+			`, oAuthClientId, oAuthClientSecret, driver)
+
+			if print {
+				sql += fmt.Sprintf(`
+				SELECT * FROM account_profiles 
+				WHERE driver='%s'
+				`, driver)
+			}
+
+			command := exec.Command("docker", "exec", "-it", dbContainerName, "/bin/bash", "-c", fmt.Sprintf("echo \"%s\" | mariadb -E -uroot -paspen aspen", sql))
 			command.Stdin = os.Stdin
 			command.Stdout = os.Stdout
 			command.Stderr = os.Stderr
@@ -36,4 +58,9 @@ func OAuthCommand() *cobra.Command {
 			}
 		},
 	}
+	// Add this line outside the Run function, but inside the function where the command is defined.
+	cmd.Flags().StringP("driver", "d", "", "Specify the driver (default is 'Koha')")
+	cmd.Flags().BoolP("print", "p", false, "Print the rows that match the driver")
+
+	return cmd
 }
