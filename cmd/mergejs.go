@@ -15,18 +15,18 @@ func init() {
 func MergeJSCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "mergejs",
-		Short: "Run the merge_javascript.php command",
+		Short: "Run the merge_javascript.php command inside the container",
 		Run: func(cmd *cobra.Command, args []string) {
-			jsDir := os.Getenv("ASPEN_CLONE") + "/code/web/interface/themes/responsive/js"
-			phpFile := "merge_javascript.php"
-
-			if jsDir == "" {
-				fmt.Println("Error: ASPEN_CLONE environment variable not set.")
+			containerName := "containeraspen"
+			if containerName == "" {
+				fmt.Println("Error: Container name not set.")
 				os.Exit(1)
 			}
 
-			command := exec.Command("php", phpFile)
-			command.Dir = jsDir
+			phpFile := "merge_javascript.php"
+			workDir := "/usr/local/aspen-discovery/code/web/interface/themes/responsive/js"
+
+			command := exec.Command("docker", "exec", "-w", workDir, containerName, "php", phpFile)
 
 			command.Stdout = os.Stdout
 			command.Stderr = os.Stderr
