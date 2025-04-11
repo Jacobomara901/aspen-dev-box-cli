@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 
+	"adb/pkg/config"
 	"github.com/spf13/cobra"
 )
 
@@ -16,23 +17,17 @@ func DBCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "db",
 		Short: "Opens the database shell",
+		Long: `Opens an interactive MariaDB shell connected to the Aspen database.
+This command provides direct access to the database for running SQL queries and managing data.`,
 		Run: func(cmd *cobra.Command, args []string) {
-			projectsDir := os.Getenv("ASPEN_DOCKER")
-			dbContainerName := "aspen-db"
-			if projectsDir == "" {
-				fmt.Println("Error: ASPEN_DOCKER environment variable not set.")
-				os.Exit(1)
-			}
-
-			command := exec.Command("docker", "exec", "-it", dbContainerName, "/bin/bash", "-c", "mariadb -uroot -paspen aspen")
-			command.Dir = fmt.Sprintf(projectsDir)
+			command := exec.Command("docker", "exec", "-it", config.GetDBContainerName(), "/bin/bash", "-c", "mariadb "+config.GetDBConnectionString())
+			command.Dir = config.GetProjectsDir()
 			command.Stdin = os.Stdin
 			command.Stdout = os.Stdout
 			command.Stderr = os.Stderr
 
-			err := command.Run()
-			if err != nil {
-				fmt.Printf("Error tailing logs in the container: %v\n", err)
+			if err := command.Run(); err != nil {
+				fmt.Printf("Error opening database shell: %v\n", err)
 				os.Exit(1)
 			}
 		},

@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 
+	"adb/pkg/config"
 	"github.com/spf13/cobra"
 )
 
@@ -13,47 +14,48 @@ func init() {
 }
 
 func LogsCommand() *cobra.Command {
-	var includeIndexingLogs bool
-	var follow bool
-
 	cmd := &cobra.Command{
 		Use:   "logs",
-		Short: "Tails the logs inside the main container",
+		Short: "View container logs",
+		Long: `View logs from the main container.
+This command allows you to view and follow logs in real-time.
+You can optionally include indexing logs using the --include-indexing flag.`,
 		Run: func(cmd *cobra.Command, args []string) {
-			projectsDir := os.Getenv("ASPEN_DOCKER")
-			mainContainerName := "containeraspen"
-			if projectsDir == "" {
-				fmt.Println("Error: ASPEN_DOCKER environment variable not set.")
-				os.Exit(1)
-			}
+			includeIndexingLogs, _ := cmd.Flags().GetBool("include-indexing")
+			follow, _ := cmd.Flags().GetBool("follow")
 
-			logPath := "/var/log/aspen-discovery/test.localhostaspen/"
-
-			logsToTail := "./* "
+			// Build the logs path pattern
+			logsPattern := "./*"
 			if includeIndexingLogs {
-				logsToTail += "./logs/* "
+				logsPattern += " ./logs/*"
 			}
 
-			tailOption := ""
+			// Build the tail command
+			tailCmd := "tail"
 			if follow {
-				tailOption = "-f "
+				tailCmd += " -f"
 			}
 
-			command := exec.Command("docker", "exec", "-it", mainContainerName, "/bin/bash", "-c", "(cd "+logPath+"; tail "+tailOption+logsToTail+")")
-			command.Dir = fmt.Sprintf(projectsDir)
-			command.Stdin = os.Stdin
-			command.Stdout = os.Stdout
-			command.Stderr = os.Stderr
-			err := command.Run()
-			if err != nil {
-				fmt.Printf("Error tailing logs in the container: %v\n", err)
+			// Execute the command in the container
+			dockerCmd := exec.Command("docker", "exec", "-it",
+				config.GetMainContainerName(),
+				"/bin/bash", "-c",
+				fmt.Sprintf("(cd %s; %s %s)", config.GetLogPath(), tailCmd, logsPattern))
+
+			dockerCmd.Dir = config.GetProjectsDir()
+			dockerCmd.Stdin = os.Stdin
+			dockerCmd.Stdout = os.Stdout
+			dockerCmd.Stderr = os.Stderr
+
+			if err := dockerCmd.Run(); err != nil {
+				fmt.Printf("Error viewing logs: %v\n", err)
 				os.Exit(1)
 			}
 		},
 	}
 
-	cmd.Flags().BoolVarP(&includeIndexingLogs, "include-indexing", "i", false, "Include indexing logs")
-	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "Follow the logs")
+	cmd.Flags().BoolP("include-indexing", "i", false, "Include indexing logs")
+	cmd.Flags().BoolP("follow", "f", false, "Follow logs in real-time")
 
 	return cmd
 }

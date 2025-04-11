@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 
+	"adb/pkg/config"
 	"github.com/spf13/cobra"
 )
 
@@ -15,10 +16,12 @@ func init() {
 func OAuthCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "oauth <client_id> <client_secret>",
-		Short: "Update the OAuth client ID and secret for Koha ils logins for ADB",
-		Args:  cobra.ExactArgs(2),
+		Short: "Update OAuth credentials",
+		Long: `Update the OAuth client ID and secret for ILS logins.
+This command updates the OAuth credentials in the database for the specified driver.
+By default, it updates the Koha driver credentials.`,
+		Args: cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
-			dbContainerName := "aspen-db"
 			oAuthClientId := args[0]
 			oAuthClientSecret := args[1]
 
@@ -28,6 +31,7 @@ func OAuthCommand() *cobra.Command {
 				driver = "Koha"
 			}
 
+			// Build the SQL query
 			sql := fmt.Sprintf(`
 			SET @update_count = 0;
 			UPDATE account_profiles 
@@ -46,19 +50,23 @@ func OAuthCommand() *cobra.Command {
 				`, driver)
 			}
 
-			command := exec.Command("docker", "exec", "-it", dbContainerName, "/bin/bash", "-c", fmt.Sprintf("echo \"%s\" | mariadb -E -uroot -paspen aspen", sql))
-			command.Stdin = os.Stdin
-			command.Stdout = os.Stdout
-			command.Stderr = os.Stderr
+			// Execute the SQL query in the database container
+			dockerCmd := exec.Command("docker", "exec", "-it",
+				config.GetDBContainerName(),
+				"/bin/bash", "-c",
+				fmt.Sprintf("echo \"%s\" | mariadb %s", sql, config.GetDBConnectionString()))
 
-			err := command.Run()
-			if err != nil {
-				fmt.Printf("Error updating OAuth credentials in the database: %v\n", err)
+			dockerCmd.Stdin = os.Stdin
+			dockerCmd.Stdout = os.Stdout
+			dockerCmd.Stderr = os.Stderr
+
+			if err := dockerCmd.Run(); err != nil {
+				fmt.Printf("Error updating OAuth credentials: %v\n", err)
 				os.Exit(1)
 			}
 		},
 	}
-	// Add this line outside the Run function, but inside the function where the command is defined.
+
 	cmd.Flags().StringP("driver", "d", "", "Specify the driver (default is 'Koha')")
 	cmd.Flags().BoolP("print", "p", false, "Print the rows that match the driver")
 

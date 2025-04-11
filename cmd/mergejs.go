@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 
+	"adb/pkg/config"
 	"github.com/spf13/cobra"
 )
 
@@ -15,24 +16,15 @@ func init() {
 func MergeJSCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "mergejs",
-		Short: "Run the merge_javascript.php command inside the container",
+		Short: "Merge JavaScript files",
+		Long: `Merge JavaScript files using the merge_javascript.php script.
+This command runs the merge script inside the main container to combine and minify JavaScript files.`,
 		Run: func(cmd *cobra.Command, args []string) {
-			containerName := "containeraspen"
-			if containerName == "" {
-				fmt.Println("Error: Container name not set.")
-				os.Exit(1)
-			}
-
-			phpFile := "merge_javascript.php"
-			workDir := "/usr/local/aspen-discovery/code/web/interface/themes/responsive/js"
-
-			command := exec.Command("docker", "exec", "-w", workDir, containerName, "php", phpFile)
-
+			command := exec.Command("docker", "exec", "-w", config.GetJSWorkDir(), config.GetMainContainerName(), "php", config.GetMergeJSScript())
 			command.Stdout = os.Stdout
 			command.Stderr = os.Stderr
 
-			err := command.Run()
-			if err != nil {
+			if err := command.Run(); err != nil {
 				fmt.Printf("Error running the merge_javascript.php command: %v\n", err)
 				os.Exit(1)
 			}

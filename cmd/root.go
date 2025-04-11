@@ -1,10 +1,11 @@
 /*
-Copyright © 2023 NAME HERE <EMAIL ADDRESS>
+Copyright © 2023 Aspen Dev Box Team
 
 */
 package cmd
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -13,44 +14,36 @@ import (
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "adb",
-	Short: "A CLI helper for aspen-dev-box",
-	Long: `Aspen CLI
+	Short: "Aspen Dev Box CLI",
+	Long: `Aspen Dev Box CLI is a command-line tool for managing the Aspen Discovery development environment.
 
-The Aspen CLI simplifies the management of your Aspen Dev Box, a containerized development environment using Docker Compose. 
-This command-line tool offers essential features for an efficient development workflow.
+This tool provides a comprehensive set of commands to:
+- Manage Docker containers and services
+- Build and compile code
+- Access logs and databases
+- Install shell completions
+- And more...
 
-Configuration:
-
-The Aspen CLI assumes that the Aspen Dev Box project is located at a specific directory path. 
-The project directory path is specified by the PROJECTS_DIR environment variable accorging to the aspen-dev-box repository readme.
-
-Getting Started:
-
-Ensure Docker and Docker Compose are installed.
-Set PROJECTS_DIR to your Aspen Dev Box project location.
-Run the Aspen CLI commands for efficient containerized development.
-`,
+For detailed information about each command, use 'adb help <command>'.`,
+	// Enable shell completion
+	CompletionOptions: cobra.CompletionOptions{
+		DisableDefaultCmd:   true,
+		DisableNoDescFlag:   false,
+		DisableDescriptions: false,
+	},
+	// Don't show usage on errors
+	SilenceUsage: true,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	err := rootCmd.Execute()
-	if err != nil {
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
 		os.Exit(1)
 	}
 }
 
 func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
-
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.aspen-cli.yaml)")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-	rootCmd.CompletionOptions.DisableDefaultCmd = true
-
+	// Add global flags here if needed
 }

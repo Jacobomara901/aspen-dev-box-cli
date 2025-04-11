@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 
+	"adb/pkg/config"
 	"github.com/spf13/cobra"
 )
 
@@ -16,20 +17,14 @@ func DownCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "down",
 		Short: "Bring down the Docker Compose project",
+		Long: `Bring down the Docker Compose project and remove orphaned containers.
+This command stops and removes all containers defined in the docker-compose file.`,
 		Run: func(cmd *cobra.Command, args []string) {
-			projectsDir := os.Getenv("ASPEN_DOCKER")
-			if projectsDir == "" {
-				fmt.Println("Error: ASPEN_DOCKER environment variable not set.")
-				os.Exit(1)
-			}
-
-			composeFile := fmt.Sprintf("%s/docker-compose.yml", projectsDir)
-			command := exec.Command("docker", "compose", "-f", composeFile, "down", "--remove-orphans")
+			command := exec.Command("docker", "compose", "-f", config.GetDefaultComposeFile(), "down", "--remove-orphans")
 			command.Stdout = os.Stdout
 			command.Stderr = os.Stderr
 
-			err := command.Run()
-			if err != nil {
+			if err := command.Run(); err != nil {
 				fmt.Printf("Error bringing down the project: %v\n", err)
 				os.Exit(1)
 			}
