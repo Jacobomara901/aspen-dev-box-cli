@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 
+	"adb/pkg/config"
 	"github.com/spf13/cobra"
 )
 
@@ -13,29 +14,33 @@ func init() {
 }
 
 func UpdateDBCommand() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "updatedb",
-		Short: "Runs any pending updates for the aspen database",
+		Short: "Run database updates",
+		Long: `Run any pending database updates for Aspen Discovery.
+This command triggers the database update process by calling the SystemAPI endpoint.`,
 		Run: func(cmd *cobra.Command, args []string) {
-			projectsDir := os.Getenv("ASPEN_DOCKER")
-			mainContainerName := "containeraspen"
-			if projectsDir == "" {
-				fmt.Println("Error: ASPEN_DOCKER environment variable not set.")
+			// Build the curl command to trigger database updates
+			curlCmd := "curl -k http://localhost/API/SystemAPI?method=runPendingDatabaseUpdates"
+
+			// Execute the command in the main container
+			dockerCmd := exec.Command("docker", "exec", "-it",
+				config.GetMainContainerName(),
+				"/bin/bash", "-c", curlCmd)
+
+			dockerCmd.Dir = config.GetProjectsDir()
+			dockerCmd.Stdin = os.Stdin
+			dockerCmd.Stdout = os.Stdout
+			dockerCmd.Stderr = os.Stderr
+
+			if err := dockerCmd.Run(); err != nil {
+				fmt.Printf("Error running database updates: %v\n", err)
 				os.Exit(1)
 			}
 
-			curlCommand := "curl -k http://localhost/API/SystemAPI?method=runPendingDatabaseUpdates"
-			command := exec.Command("docker", "exec", "-it", mainContainerName, "/bin/bash", "-c", curlCommand)
-			command.Dir = fmt.Sprintf(projectsDir)
-			command.Stdin = os.Stdin
-			command.Stdout = os.Stdout
-			command.Stderr = os.Stderr
-
-			err := command.Run()
-			if err != nil {
-				fmt.Printf("Error running db updates in the container: %v\n", err)
-				os.Exit(1)
-			}
+			fmt.Println("Database updates completed successfully")
 		},
 	}
+
+	return cmd
 }

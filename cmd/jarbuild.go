@@ -1,138 +1,136 @@
 package cmd
 
 import (
-    "fmt"
-    "os"
-    "os/exec"
-    "strings"
-    "path/filepath"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 
-    "github.com/spf13/cobra"
+	"adb/pkg/config"
+	"github.com/spf13/cobra"
 )
 
 func init() {
-    rootCmd.AddCommand(JarBuildCommand())
+	rootCmd.AddCommand(JarBuildCommand())
 }
 
-func runDockerBuild(aspenClone, jarFile string) error {
-    workDir := fmt.Sprintf("/app/code/%s", jarFile)
+func runDockerBuild(jarFile string) error {
+	workDir := fmt.Sprintf("/app/code/%s", jarFile)
 
-    fmt.Printf("\n\033[1;34mRecompiling JAR file: %s\033[0m\n", jarFile)
+	fmt.Printf("\n\033[1;34mRecompiling JAR file: %s\033[0m\n", jarFile)
 
-    // Use the command variable
-    command := exec.Command("docker", "run", "--rm",
-        "-v", fmt.Sprintf("%s:/app", aspenClone),
-        "-w", workDir,
-        "--user", fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()),
-        "openjdk:11", "bash", "-c", `
-            mkdir -p bin && \
-            javac -cp "$(find /app -name '*.jar' | tr '\n' ':')" -d bin $(find src -name '*.java') $(find /app/code/java_shared_libraries -name '*.java') && \
-            jar cfm $(basename $(pwd)).jar META-INF/MANIFEST.MF -C bin . && \
-            rm -rf bin
-        `,
-    )
+	command := exec.Command("docker", "run", "--rm",
+		"-v", fmt.Sprintf("%s:/app", config.GetAspenCloneDir()),
+		"-w", workDir,
+		"--user", fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()),
+		config.GetJavaBuildImage(), "bash", "-c", `
+			mkdir -p bin && \
+			javac -cp "$(find /app -name '*.jar' | tr '\n' ':')" -d bin $(find src -name '*.java') $(find `+config.GetJavaSharedLibrariesPath()+` -name '*.java') && \
+			jar cfm $(basename $(pwd)).jar META-INF/MANIFEST.MF -C bin . && \
+			rm -rf bin
+		`,
+	)
 
-    // Run the command
-    command.Stdin = os.Stdin
-    command.Stdout = os.Stdout
-    command.Stderr = os.Stderr
+	command.Stdin = os.Stdin
+	command.Stdout = os.Stdout
+	command.Stderr = os.Stderr
 
-    return command.Run()
+	return command.Run()
 }
 
 func JarBuildCommand() *cobra.Command {
-    var all bool
+	var all bool
 
-    cmd := &cobra.Command{
-        Use:   "jarbuild",
-        Short: "Run the Jar builder command",
-        Run: func(cmd *cobra.Command, args []string) {
-            aspenClone := os.Getenv("ASPEN_CLONE")
-            if aspenClone == "" {
-                fmt.Println("Error: ASPEN_CLONE environment variable not set.")
-                os.Exit(1)
-            }
+	cmd := &cobra.Command{
+		Use:   "jarbuild",
+		Short: "Build Java JAR files",
+		Long: `Build Java JAR files from source code.
+This command can build either a single JAR file selected via fzf or all JAR files at once.`,
+		Run: func(cmd *cobra.Command, args []string) {
+			if all {
+				buildAllJars()
+			} else {
+				buildSingleJar()
+			}
+		},
+	}
 
-            if all {
-                // Run the find command to get all JAR files
-                findCmd := exec.Command("docker", "run", "--rm",
-                    "-v", fmt.Sprintf("%s:/app", aspenClone),
-                    "-w", "/app",
-                    "alpine:latest", "sh", "-c", `
-                        apk add --no-cache findutils > /dev/null && \
-                        find /app/code -mindepth 2 -maxdepth 2 -name '*.jar' | grep -v "java_shared_libraries" | grep -v "marcMergeUtility" | grep -v "palace_project_export" | grep -v "rbdigital_export" | xargs -n 1 basename | sed 's/\.jar$//'
-                    `,
-                )
+	cmd.Flags().BoolVarP(&all, "all", "a", false, "Build all JAR files")
+	return cmd
+}
 
-                findOutput, err := findCmd.Output()
-                if err != nil {
-                    fmt.Printf("Error finding JAR files: %v\n", err)
-                    os.Exit(1)
-                }
+func buildAllJars() {
+	findCmd := exec.Command("docker", "run", "--rm",
+		"-v", fmt.Sprintf("%s:/app", config.GetAspenCloneDir()),
+		"-w", "/app",
+		config.GetAlpineImage(), "sh", "-c", fmt.Sprintf(`
+			apk add --no-cache findutils > /dev/null && \
+			find /app/code -mindepth 2 -maxdepth 2 -name '*.jar' | grep -v "%s" | xargs -n 1 basename | sed 's/\.jar$//'
+		`, strings.ReplaceAll(config.GetExcludedJarPatterns(), " ", "\\|")),
+	)
 
-                jarFiles := strings.Split(strings.TrimSpace(string(findOutput)), "\n")
-                for _, jarFile := range jarFiles {
-                    if jarFile == "" {
-                        continue
-                    }
+	findOutput, err := findCmd.Output()
+	if err != nil {
+		fmt.Printf("Error finding JAR files: %v\n", err)
+		os.Exit(1)
+	}
 
-                    if err := runDockerBuild(aspenClone, jarFile); err != nil {
-                        fmt.Printf("Error running Docker command for %s: %v\n", jarFile, err)
-                        os.Exit(1)
-                    }
-                }
-            } else {
-                // Create a temporary file to capture the output of fzf
-                tmpFile, err := os.CreateTemp(aspenClone, "fzf-output")
-                if err != nil {
-                    fmt.Printf("Error creating temporary file: %v\n", err)
-                    os.Exit(1)
-                }
-                defer os.Remove(tmpFile.Name())
+	jarFiles := strings.Split(strings.TrimSpace(string(findOutput)), "\n")
+	for _, jarFile := range jarFiles {
+		if jarFile == "" {
+			continue
+		}
 
-                // Get the temporary file name inside the Docker container
-                tmpFileName := filepath.Join("/app", filepath.Base(tmpFile.Name()))
+		if err := runDockerBuild(jarFile); err != nil {
+			fmt.Printf("Error building JAR file %s: %v\n", jarFile, err)
+			os.Exit(1)
+		}
+	}
+}
 
-                fzfCmd := exec.Command("docker", "run", "--rm", "-it",
-                    "-v", fmt.Sprintf("%s:/app", aspenClone),
-                    "-w", "/app",
-                    "alpine:latest", "sh", "-c", fmt.Sprintf(`
-                        apk add --no-cache fzf findutils > /dev/null && \
-                        find /app/code -mindepth 2 -maxdepth 2 -name '*.jar' | grep -v "java_shared_libraries" | grep -v "marcMergeUtility" | grep -v "palace_project_export" | grep -v "rbdigital_export" | xargs -n 1 basename | sed 's/\.jar$//' | fzf > %s
-                    `, tmpFileName),
-                )
+func buildSingleJar() {
+	tmpFile, err := os.CreateTemp(config.GetAspenCloneDir(), "fzf-output")
+	if err != nil {
+		fmt.Printf("Error creating temporary file: %v\n", err)
+		os.Exit(1)
+	}
+	defer os.Remove(tmpFile.Name())
 
-                // Ensure the terminal input and output are correctly passed through
-                fzfCmd.Stdin = os.Stdin
-                fzfCmd.Stdout = os.Stdout
-                fzfCmd.Stderr = os.Stderr
+	tmpFileName := filepath.Join("/app", filepath.Base(tmpFile.Name()))
 
-                if err := fzfCmd.Run(); err != nil {
-                    fmt.Printf("Error selecting JAR file with fzf: %v\n", err)
-                    os.Exit(1)
-                }
+	fzfCmd := exec.Command("docker", "run", "--rm", "-it",
+		"-v", fmt.Sprintf("%s:/app", config.GetAspenCloneDir()),
+		"-w", "/app",
+		config.GetAlpineImage(), "sh", "-c", fmt.Sprintf(`
+			apk add --no-cache fzf findutils > /dev/null && \
+			find /app/code -mindepth 2 -maxdepth 2 -name '*.jar' | grep -v "%s" | xargs -n 1 basename | sed 's/\.jar$//' | fzf > %s
+		`, strings.ReplaceAll(config.GetExcludedJarPatterns(), " ", "\\|"), tmpFileName),
+	)
 
-                // Read the output from the temporary file
-                fzfOutput, err := os.ReadFile(filepath.Join(aspenClone, filepath.Base(tmpFile.Name())))
-                if err != nil {
-                    fmt.Printf("Error reading fzf output: %v\n", err)
-                    os.Exit(1)
-                }
+	fzfCmd.Stdin = os.Stdin
+	fzfCmd.Stdout = os.Stdout
+	fzfCmd.Stderr = os.Stderr
 
-                selectedJar := strings.TrimSpace(string(fzfOutput))
-                if selectedJar == "" {
-                    fmt.Println("No JAR file selected.")
-                    os.Exit(1)
-                }
+	if err := fzfCmd.Run(); err != nil {
+		fmt.Printf("Error selecting JAR file with fzf: %v\n", err)
+		os.Exit(1)
+	}
 
-                if err := runDockerBuild(aspenClone, selectedJar); err != nil {
-                    fmt.Printf("Error running Docker command: %v\n", err)
-                    os.Exit(1)
-                }
-            }
-        },
-    }
+	fzfOutput, err := os.ReadFile(filepath.Join(config.GetAspenCloneDir(), filepath.Base(tmpFile.Name())))
+	if err != nil {
+		fmt.Printf("Error reading fzf output: %v\n", err)
+		os.Exit(1)
+	}
 
-    cmd.Flags().BoolVarP(&all, "all", "a", false, "Build all JAR files")
-    return cmd
+	selectedJar := strings.TrimSpace(string(fzfOutput))
+	if selectedJar == "" {
+		fmt.Println("No JAR file selected.")
+		os.Exit(1)
+	}
+
+	if err := runDockerBuild(selectedJar); err != nil {
+		fmt.Printf("Error building JAR file: %v\n", err)
+		os.Exit(1)
+	}
 }
