@@ -1,0 +1,54 @@
+name: Build CLI Binaries
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - '**'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - '**'
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  build:
+    runs-on: macos-latest  # We need macOS for lipo
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Create bin directories
+      run: |
+        mkdir -p bin/linux
+        mkdir -p bin/darwin
+
+    - name: Build Linux binary
+      run: |
+        # Build for Linux
+        GOOS=linux GOARCH=amd64 go build -o bin/linux/adb .
+
+    - name: Build macOS Universal binary
+      run: |
+        # Build for Intel Macs
+        GOOS=darwin GOARCH=amd64 go build -o bin/darwin/adb-amd64 .
+        # Build for Apple Silicon
+        GOOS=darwin GOARCH=arm64 go build -o bin/darwin/adb-arm64 .
+        # Create universal binary
+        lipo -create -output bin/darwin/adb bin/darwin/adb-amd64 bin/darwin/adb-arm64
+        # Clean up intermediate files
+        rm bin/darwin/adb-amd64 bin/darwin/adb-arm64
+
+    - name: Commit and push if changed
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git add bin/
+        git diff --quiet && git diff --staged --quiet || (git commit -m "Update CLI binaries [skip ci]" && git push) 
