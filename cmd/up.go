@@ -5,8 +5,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"adb/pkg/config"
+
 	"github.com/compose-spec/compose-go/loader"
 	"github.com/spf13/cobra"
 )
@@ -79,6 +81,12 @@ You can also select which ILS to use (koha or evergreen).`,
 
 			if pullUpdated {
 				pullImages(commandArgs)
+			}
+
+			dryRun, _ := cmd.Flags().GetBool("dry-run")
+			if dryRun {
+				fmt.Printf("dry-run: would execute: docker %s\n", strings.Join(commandArgs, " "))
+				return
 			}
 
 			command := exec.Command("docker", commandArgs...)
