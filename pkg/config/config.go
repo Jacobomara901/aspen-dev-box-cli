@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"github.com/joho/godotenv"
 )
 
 const (
@@ -53,8 +54,39 @@ const (
 	LessOutputFile = "main.css"
 )
 
-// GetProjectsDir returns the ASPEN_DOCKER environment variable or exits if not set
+// getBinaryPath returns the absolute path to the running binary
+func getBinaryPath() (string, error) {
+	ex, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("failed to get executable path: %w", err)
+	}
+	return filepath.Dir(ex), nil
+}
+
+// loadEnvFile attempts to load the .env file relative to the binary location
+func loadEnvFile() error {
+	binaryPath, err := getBinaryPath()
+	if err != nil {
+		return err
+	}
+
+	// Go up two directories from the binary location to find the .env file
+	// binary is in folder/bin/architecture/binary, .env is in folder/.env
+	envPath := filepath.Join(filepath.Dir(filepath.Dir(binaryPath)), ".env")
+
+	// Try to load the .env file, but don't error if it doesn't exist
+	err = godotenv.Load(envPath)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("error loading .env file: %w", err)
+	}
+	return nil
+}
+
+// GetProjectsDir returns the ASPEN_DOCKER environment variable or falls back to .env file
 func GetProjectsDir() string {
+	// Try to load .env file first
+	_ = loadEnvFile()
+
 	projectsDir := os.Getenv("ASPEN_DOCKER")
 	if projectsDir == "" {
 		fmt.Println("Error: ASPEN_DOCKER environment variable not set.")
@@ -63,8 +95,11 @@ func GetProjectsDir() string {
 	return projectsDir
 }
 
-// GetAspenCloneDir returns the ASPEN_CLONE environment variable or exits if not set
+// GetAspenCloneDir returns the ASPEN_CLONE environment variable or falls back to .env file
 func GetAspenCloneDir() string {
+	// Try to load .env file first
+	_ = loadEnvFile()
+
 	aspenClone := os.Getenv("ASPEN_CLONE")
 	if aspenClone == "" {
 		fmt.Println("Error: ASPEN_CLONE environment variable not set.")
@@ -185,4 +220,4 @@ func GetLessInputFile() string {
 // GetLessOutputFile returns the output CSS file
 func GetLessOutputFile() string {
 	return LessOutputFile
-} 
+}
