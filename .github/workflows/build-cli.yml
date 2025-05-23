@@ -14,7 +14,7 @@ on:
 jobs:
   build:
     runs-on: macos-latest  # We need macOS for lipo
-    
+
     steps:
     - uses: actions/checkout@v4
       with:
@@ -29,11 +29,17 @@ jobs:
       run: |
         mkdir -p bin/linux
         mkdir -p bin/darwin
+        mkdir -p bin/windows
 
     - name: Build Linux binary
       run: |
         # Build for Linux
         GOOS=linux GOARCH=amd64 go build -o bin/linux/adb .
+
+    - name: Build Windows binary
+      run: |
+        # Build for Windows
+        GOOS=windows GOARCH=amd64 go build -o bin/windows/adb.exe .
 
     - name: Build macOS Universal binary
       run: |
@@ -51,4 +57,4 @@ jobs:
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
         git add bin/
-        git diff --quiet && git diff --staged --quiet || (git commit -m "Update CLI binaries [skip ci]" && git push) 
+        git diff --quiet && git diff --staged --quiet || (git commit -m "Update CLI binaries [skip ci]" && git push)

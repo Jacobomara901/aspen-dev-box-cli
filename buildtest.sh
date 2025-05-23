@@ -15,9 +15,15 @@ fi
 # Create the bin directory if it doesn't exist
 mkdir -p bin/linux
 mkdir -p bin/darwin
+mkdir -p bin/windows
 
 # Build for Linux
+echo "Building Linux binary..."
 GOOS=linux GOARCH=amd64 go build -o bin/linux/adb
+
+# Build for Windows
+echo "Building Windows binary..."
+GOOS=windows GOARCH=amd64 go build -o bin/windows/adb.exe
 
 # Only build macOS binaries if we're on macOS
 if [[ "$(uname)" == "Darwin" ]]; then
@@ -31,7 +37,7 @@ if [[ "$(uname)" == "Darwin" ]]; then
     # Clean up intermediate files
     rm bin/darwin/adb-amd64 bin/darwin/adb-arm64
 else
-    echo "Not on macOS, skipping macOS binary builds as we cannot make them universal on linux. The actions runner will do this on push to main."
+    echo "Not on macOS, skipping macOS binary builds as we cannot make them universal on linux. The actions runner will do this on push to main branch."
 fi
 
 # Copy the bin directory to ASPEN_DOCKER
