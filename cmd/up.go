@@ -71,6 +71,12 @@ You can also select which ILS to use (koha or evergreen).`,
 				os.Exit(1)
 			}
 
+			// Add local.yml file, if it exists
+			localComposeFile := filepath.Join(aspenDocker, "local.yml")
+			if _, err := os.Stat(localComposeFile); err == nil {
+				commandArgs = append(commandArgs, "-f", localComposeFile)
+			}
+
 			commandArgs = append(commandArgs, "up")
 
 			if detached {
