@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 
 	"adb/pkg/config"
 	"github.com/compose-spec/compose-go/loader"
@@ -20,12 +21,14 @@ func UpCommand() *cobra.Command {
 	var dbgui bool
 	var pullUpdated bool
 	var kohaStack string
+	var ils string
 
 	cmd := &cobra.Command{
 		Use:   "up",
 		Short: "Bring up the Docker Compose project",
 		Long: `Bring up the Docker Compose project with optional configurations.
-You can run in detached mode, with debugging enabled, or with the database GUI.`,
+You can run in detached mode, with debugging enabled, or with the database GUI.
+You can also select which ILS to use (koha or evergreen).`,
 		Run: func(cmd *cobra.Command, args []string) {
 			commandArgs := []string{"compose", "-f", config.GetDefaultComposeFile()}
 
@@ -37,8 +40,35 @@ You can run in detached mode, with debugging enabled, or with the database GUI.`
 				commandArgs = append(commandArgs, "-f", config.GetDBGUIComposeFile())
 			}
 
-			if kohaStack != "" {
-				os.Setenv("KOHA_STACK", kohaStack)
+			// Get ASPEN_DOCKER directory
+			aspenDocker := os.Getenv("ASPEN_DOCKER")
+			if aspenDocker == "" {
+				fmt.Println("Error: ASPEN_DOCKER environment variable is not set")
+				os.Exit(1)
+			}
+
+			// Add ILS-specific compose file
+			switch ils {
+			case "koha":
+				if kohaStack != "" {
+					os.Setenv("KOHA_STACK", kohaStack)
+				}
+				kohaOverride := filepath.Join(aspenDocker, "docker-compose.koha.yml")
+				if _, err := os.Stat(kohaOverride); err != nil {
+					fmt.Printf("Error: Koha override file not found at %s\n", kohaOverride)
+					os.Exit(1)
+				}
+				commandArgs = append(commandArgs, "-f", kohaOverride)
+			case "evergreen":
+				evergreenOverride := filepath.Join(aspenDocker, "docker-compose.evergreen.yml")
+				if _, err := os.Stat(evergreenOverride); err != nil {
+					fmt.Printf("Error: Evergreen override file not found at %s\n", evergreenOverride)
+					os.Exit(1)
+				}
+				commandArgs = append(commandArgs, "-f", evergreenOverride)
+			default:
+				fmt.Printf("Error: Unsupported ILS '%s'. Supported values: koha, evergreen\n", ils)
+				os.Exit(1)
 			}
 
 			commandArgs = append(commandArgs, "up")
@@ -67,6 +97,7 @@ You can run in detached mode, with debugging enabled, or with the database GUI.`
 	cmd.Flags().BoolVarP(&dbgui, "dbgui", "b", false, "Run with dbgui compose file")
 	cmd.Flags().BoolVarP(&pullUpdated, "pull", "p", false, "Pull the images for the project only if they have been updated")
 	cmd.Flags().StringVarP(&kohaStack, "koha-stack", "k", "", "Specify the Koha stack to connect to (default: kohadev)")
+	cmd.Flags().StringVarP(&ils, "ils", "i", "koha", "Select ILS to use (koha|evergreen)")
 
 	return cmd
 }
