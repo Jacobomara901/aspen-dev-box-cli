@@ -20,16 +20,29 @@ func runDockerBuild(jarFile string) error {
 
 	fmt.Printf("\n\033[1;34mRecompiling JAR file: %s\033[0m\n", jarFile)
 
+	buildScript := fmt.Sprintf(`
+set -e
+cd %s
+mkdir -p bin
+javac -cp "$(find /app -name '*.jar' | tr '\n' ':')" -d bin $(find src -name '*.java') $(find %s -name '*.java')
+jar cfm $(basename $(pwd)).jar META-INF/MANIFEST.MF -C bin .
+rm -rf bin
+`, workDir, config.GetJavaSharedLibrariesPath())
+
+	shellCmd := fmt.Sprintf(`
+apk add --no-cache findutils bash shadow > /dev/null
+addgroup -g %d buildgroup 2>/dev/null || true
+GROUPNAME=$(getent group %d | cut -d: -f1)
+adduser -D -u %d -G ${GROUPNAME} builduser 2>/dev/null || true
+su - builduser -s /bin/sh <<'BUILDEOF'
+%s
+BUILDEOF
+`, os.Getgid(), os.Getgid(), os.Getuid(), buildScript)
+
 	command := exec.Command("docker", "run", "--rm",
 		"-v", fmt.Sprintf("%s:/app", config.GetAspenCloneDir()),
 		"-w", workDir,
-		"--user", fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()),
-		config.GetJavaBuildImage(), "bash", "-c", `
-			mkdir -p bin && \
-			javac -cp "$(find /app -name '*.jar' | tr '\n' ':')" -d bin $(find src -name '*.java') $(find `+config.GetJavaSharedLibrariesPath()+` -name '*.java') && \
-			jar cfm $(basename $(pwd)).jar META-INF/MANIFEST.MF -C bin . && \
-			rm -rf bin
-		`,
+		config.GetJavaBuildImage(), "sh", "-c", shellCmd,
 	)
 
 	command.Stdin = os.Stdin
