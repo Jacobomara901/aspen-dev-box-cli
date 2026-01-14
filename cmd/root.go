@@ -1,6 +1,5 @@
 /*
 Copyright © 2023 Aspen Dev Box Team
-
 */
 package cmd
 
@@ -45,5 +44,5 @@ func Execute() {
 }
 
 func init() {
-	// Add global flags here if needed
+	rootCmd.PersistentFlags().BoolP("dry-run", "n", false, "Show what would be done without executing")
 }
