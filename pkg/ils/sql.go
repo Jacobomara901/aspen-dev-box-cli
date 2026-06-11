@@ -28,6 +28,9 @@ func (c *Config) RenderSQL(extrasRoot string) (string, error) {
 	if err := writeInsert(&b, "indexing_profiles", c.IndexingProfile); err != nil {
 		return "", err
 	}
+	if apID, ok := c.AccountProfile["id"]; ok {
+		fmt.Fprintf(&b, "UPDATE library SET accountProfileId = %v WHERE libraryId = 1;\n", apID)
+	}
 	if c.Driver != "" {
 		fmt.Fprintf(&b, "UPDATE modules SET enabled = 1 WHERE name = %s;\n", quote(c.Driver))
 	}
