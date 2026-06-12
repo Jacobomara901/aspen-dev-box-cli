@@ -24,6 +24,8 @@ func UpCommand() *cobra.Command {
 	var pullUpdated bool
 	var kohaStack string
 	var ilsFlag string
+	var pluginsPath string
+	var plugins bool
 
 	cmd := &cobra.Command{
 		Use:   "up",
@@ -50,6 +52,12 @@ YAML config, or "none" to skip ILS setup entirely.`,
 			}
 			files = append(files, ilsFiles...)
 
+			pluginFiles, err := setupPlugins(plugins, pluginsPath)
+			if err != nil {
+				return err
+			}
+			files = append(files, pluginFiles...)
+
 			if pullUpdated {
 				if err := pullImagesFromFiles(ctx, files); err != nil {
 					return err
@@ -72,8 +80,28 @@ YAML config, or "none" to skip ILS setup entirely.`,
 	cmd.Flags().BoolVarP(&pullUpdated, "pull", "p", false, "Pull the images for the project only if they have been updated")
 	cmd.Flags().StringVarP(&kohaStack, "koha-stack", "k", "", "Koha stack to connect to (default: kohadev)")
 	cmd.Flags().StringVarP(&ilsFlag, "ils", "i", "koha", "ILS preset name, path to YAML config, or 'none'")
+	cmd.Flags().BoolVar(&plugins, "plugins", false, "Mount a plugins dir into the container and enable aspen plugin loading")
+	cmd.Flags().StringVar(&pluginsPath, "plugins-path", "", "Host path of plugins dir (default: $ASPEN_PLUGINS or $ASPEN_DOCKER/plugins)")
 
 	return cmd
+}
+
+func setupPlugins(enabled bool, path string) ([]string, error) {
+	if !enabled {
+		return nil, nil
+	}
+	if path != "" {
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			return nil, err
+		}
+		os.Setenv("ASPEN_PLUGINS", abs)
+	}
+	overlay := filepath.Join(cfg.ProjectsDir, "docker-compose.plugins.yml")
+	if _, err := os.Stat(overlay); err != nil {
+		return nil, fmt.Errorf("plugins overlay missing: %s", overlay)
+	}
+	return []string{overlay}, nil
 }
 
 func setupILS(value, kohaStack string) ([]string, error) {
