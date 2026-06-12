@@ -16,10 +16,10 @@ func init() {
 
 func SeedCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:                "seed [-- args...]",
-		Short:              "Seed dev data into aspen (libraries, etc.)",
-		Long:               "Run the aspen seeder. Examples:\n  adb seed list\n  adb seed build library 500",
-		DisableFlagParsing: true,
+		Use:   "seed <command> [args...]",
+		Short: "Seed dev data into aspen (libraries, etc.)",
+		Long:  "Run the aspen seeder. Examples:\n  adb seed list\n  adb seed build library 500\n  adb seed build user 10 password=foo",
+		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			runner, err := docker.NewRunner()
 			if err != nil {
