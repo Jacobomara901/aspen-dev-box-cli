@@ -17,13 +17,37 @@ type aspenJob struct {
 }
 
 var aspenJobs = map[string]aspenJob{
-	"koha-export":  {Dir: "/usr/local/aspen-discovery/code/koha_export", Bin: []string{"java", "-jar", "koha_export.jar"}},
-	"reindexer":    {Dir: "/usr/local/aspen-discovery/code/reindexer", Bin: []string{"java", "-jar", "reindexer.jar"}},
-	"oai-indexer":  {Dir: "/usr/local/aspen-discovery/code/oai_indexer", Bin: []string{"java", "-jar", "oai_indexer.jar"}},
-	"sideload":     {Dir: "/usr/local/aspen-discovery/code/sideload_processing", Bin: []string{"java", "-jar", "sideload_processing.jar"}},
-	"user-lists":   {Dir: "/usr/local/aspen-discovery/code/user_list_indexer", Bin: []string{"java", "-jar", "user_list_indexer.jar"}},
-	"cron":         {Dir: "/usr/local/aspen-discovery/docker/files/cron", Bin: []string{"php", "checkBackgroundProcessesDocker.php"}},
-	"sitemaps":     {Dir: "/usr/local/aspen-discovery/code/web/cron", Bin: []string{"php", "createSitemaps.php"}},
+	"reindexer":               jarJob("reindexer"),
+	"oai-indexer":             jarJob("oai_indexer"),
+	"sideload":                jarJob("sideload_processing"),
+	"user-lists":              jarJob("user_list_indexer"),
+	"course-reserves":         jarJob("course_reserves_indexer"),
+	"events-indexer":          jarJob("events_indexer"),
+	"series-indexer":          jarJob("series_indexer"),
+	"web-indexer":             jarJob("web_indexer"),
+	"marc-merge":              jarJob("marcMergeUtility"),
+	"cron-jar":                jarJob("cron"),
+	"koha-export":             jarJob("koha_export"),
+	"evergreen-export":        jarJob("evergreen_export"),
+	"polaris-export":          jarJob("polaris_export"),
+	"sierra-export":           jarJob("sierra_export_api"),
+	"carlx-export":            jarJob("carlx_export"),
+	"symphony-export":         jarJob("symphony_export"),
+	"evolve-export":           jarJob("evolve_export"),
+	"axis-360-export":         jarJob("axis_360_export"),
+	"hoopla-export":           jarJob("hoopla_export"),
+	"overdrive-export":        jarJob("overdrive_extract"),
+	"cloud-library-export":    jarJob("cloud_library_export"),
+	"palace-project-export":   jarJob("palace_project_export"),
+	"cron":                    {Dir: "/usr/local/aspen-discovery/docker/files/cron", Bin: []string{"php", "checkBackgroundProcessesDocker.php"}},
+	"sitemaps":                {Dir: "/usr/local/aspen-discovery/code/web/cron", Bin: []string{"php", "createSitemaps.php"}},
+}
+
+func jarJob(name string) aspenJob {
+	return aspenJob{
+		Dir: "/usr/local/aspen-discovery/code/" + name,
+		Bin: []string{"java", "-jar", name + ".jar"},
+	}
 }
 
 func init() {
