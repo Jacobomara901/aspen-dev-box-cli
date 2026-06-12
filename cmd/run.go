@@ -61,6 +61,12 @@ func RunCommand() *cobra.Command {
 		Long:  buildRunLong(),
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if args[0] == "list" {
+				for _, name := range sortedJobs() {
+					fmt.Println(name)
+				}
+				return nil
+			}
 			runner, err := docker.NewRunner()
 			if err != nil {
 				return fmt.Errorf("initialize docker: %w", err)
@@ -72,13 +78,16 @@ func RunCommand() *cobra.Command {
 }
 
 func buildRunLong() string {
+	return "Run 'adb run list' to see available jobs.\n\nExamples:\n  adb run koha-export\n  adb run reindexer nightly\n  adb run list"
+}
+
+func sortedJobs() []string {
 	names := make([]string, 0, len(aspenJobs))
 	for k := range aspenJobs {
 		names = append(names, k)
 	}
 	sort.Strings(names)
-	return "Available jobs: " + strings.Join(names, ", ") +
-		"\n\nExamples:\n  adb run koha-export\n  adb run reindexer nightly\n  adb run cron"
+	return names
 }
 
 func runJob(ctx context.Context, runner *docker.SDKRunner, name string, extra []string) error {
@@ -98,10 +107,5 @@ func runJob(ctx context.Context, runner *docker.SDKRunner, name string, extra []
 }
 
 func sortedJobNames() string {
-	names := make([]string, 0, len(aspenJobs))
-	for k := range aspenJobs {
-		names = append(names, k)
-	}
-	sort.Strings(names)
-	return strings.Join(names, ", ")
+	return strings.Join(sortedJobs(), ", ")
 }
