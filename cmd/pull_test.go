@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"adb/pkg/config"
 )
 
 func TestImagesFromComposeFilesSubstitutesAndDedupes(t *testing.T) {
@@ -50,6 +52,37 @@ services:
 	}
 	if images[0] != "example/aspen:pinned" {
 		t.Errorf("env override not applied: %v", images)
+	}
+}
+
+func TestPullableComposeFilesTakesEveryOverlayAndTheProxy(t *testing.T) {
+	dir := t.TempDir()
+	mustMkdir(t, filepath.Join(dir, "compose"))
+	for _, name := range []string{config.DefaultComposeFile, config.KohaComposeFile, config.EvergreenComposeFile} {
+		mustWrite(t, filepath.Join(dir, "compose", name))
+	}
+
+	original := cfg.ProjectsDir
+	cfg.ProjectsDir = dir
+	t.Cleanup(func() { cfg.ProjectsDir = original })
+
+	files, err := pullableComposeFiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		filepath.Join(dir, "compose", config.EvergreenComposeFile),
+		filepath.Join(dir, "compose", config.KohaComposeFile),
+		filepath.Join(dir, "compose", config.DefaultComposeFile),
+		cfg.ProxyComposeFilePath(),
+	}
+	if len(files) != len(want) {
+		t.Fatalf("files = %v, want %v", files, want)
+	}
+	for i := range want {
+		if files[i] != want[i] {
+			t.Errorf("files[%d] = %q, want %q", i, files[i], want[i])
+		}
 	}
 }
 

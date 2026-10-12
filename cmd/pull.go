@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strings"
 
-	"adb/pkg/config"
 	"adb/pkg/docker"
 
 	"github.com/compose-spec/compose-go/loader"
@@ -21,23 +20,19 @@ func init() {
 }
 
 func PullCommand() *cobra.Command {
-	var evergreen bool
-
 	cmd := &cobra.Command{
 		Use:   "pull",
 		Short: "Pull every image the dev box uses",
 		Long: `Pull the images referenced by all compose files (the stack, every overlay and
 the proxy) plus the JDK and less images used by adb jarbuild and adb
-compilecss, so a later adb up needs no downloads. The Evergreen ILS image is
-large and only pulled with --evergreen.
+compilecss, so a later adb up needs no downloads.
 
 Examples:
-  adb pull
-  adb pull --evergreen`,
+  adb pull`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			setupSolrImage(cfg.AspenCloneDir)
 
-			files, err := pullableComposeFiles(evergreen)
+			files, err := pullableComposeFiles()
 			if err != nil {
 				return err
 			}
@@ -56,24 +51,15 @@ Examples:
 		},
 	}
 
-	cmd.Flags().BoolVarP(&evergreen, "evergreen", "e", false, "Also pull the Evergreen ILS image")
 	return cmd
 }
 
-func pullableComposeFiles(evergreen bool) ([]string, error) {
+func pullableComposeFiles() ([]string, error) {
 	files, err := filepath.Glob(filepath.Join(cfg.ProjectsDir, "compose", "*.yml"))
 	if err != nil {
 		return nil, err
 	}
-	var selected []string
-	for _, f := range files {
-		skipEvergreen := !evergreen && filepath.Base(f) == config.EvergreenComposeFile
-		if skipEvergreen {
-			continue
-		}
-		selected = append(selected, f)
-	}
-	return append(selected, cfg.ProxyComposeFilePath()), nil
+	return append(files, cfg.ProxyComposeFilePath()), nil
 }
 
 func imagesFromComposeFiles(files []string) ([]string, error) {
