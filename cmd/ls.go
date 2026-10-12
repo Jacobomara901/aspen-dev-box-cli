@@ -11,7 +11,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const kohaOAuthService = "koha-oauth-init"
+const (
+	kohaOAuthService       = "koha-oauth-init"
+	evergreenImportService = "evergreen-import-init"
+)
 
 func init() {
 	rootCmd.AddCommand(LsCommand())
@@ -24,7 +27,8 @@ func LsCommand() *cobra.Command {
 		Short:   "List aspen stacks and their URLs",
 		Long: `List every aspen stack docker knows about (default instance, worktrees and
 named stacks) with the state of each service, its URL, the clone it serves
-and the ILS it is wired to, including whether the Koha OAuth setup succeeded.
+and the ILS it is wired to, including whether its setup job (the Koha OAuth
+client or the Evergreen import) succeeded.
 The stack adb currently targets is marked with *.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			runner, err := docker.NewRunner()
@@ -72,18 +76,25 @@ func stackStatus(s docker.StackSummary) string {
 }
 
 func ilsStatus(s docker.StackSummary) string {
-	if s.ILS != "koha" {
-		return s.ILS
+	if s.ILS == "koha" {
+		return setupJobStatus(s, kohaOAuthService, "oauth")
 	}
-	oauth, ok := s.Services[kohaOAuthService]
+	if s.ILS == "evergreen" {
+		return setupJobStatus(s, evergreenImportService, "import")
+	}
+	return s.ILS
+}
+
+func setupJobStatus(s docker.StackSummary, service, label string) string {
+	state, ok := s.Services[service]
 	if !ok {
 		return s.ILS
 	}
-	if oauth == "exited(0)" {
-		return "koha (oauth ok)"
+	if state == "exited(0)" {
+		return fmt.Sprintf("%s (%s ok)", s.ILS, label)
 	}
-	if strings.HasPrefix(oauth, "exited") {
-		return "koha (oauth failed, see adb logs --service " + kohaOAuthService + ")"
+	if strings.HasPrefix(state, "exited") {
+		return fmt.Sprintf("%s (%s failed, see adb logs --service %s)", s.ILS, label, service)
 	}
-	return "koha (oauth pending)"
+	return fmt.Sprintf("%s (%s pending)", s.ILS, label)
 }
