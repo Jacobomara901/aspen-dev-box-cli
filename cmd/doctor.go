@@ -49,6 +49,7 @@ func init() {
 
 func DoctorCommand() *cobra.Command {
 	var kohaStack string
+	var evergreenStack string
 	cmd := &cobra.Command{
 		Use:         "doctor",
 		Short:       "Check the machine is set up for the aspen dev box",
@@ -56,11 +57,12 @@ func DoctorCommand() *cobra.Command {
 		Long: `Check everything adb up needs before it runs: the ASPEN_DOCKER and
 ASPEN_CLONE environment variables, the .env file, the host UID/GID mapping,
 the docker daemon and compose, the koha-testing-docker network the default
---ils koha needs, and the host ports the proxy binds.`,
+--ils koha needs, the evergreen-testing-docker network --ils evergreen needs,
+and the host ports the proxy binds.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c := &checkup{}
 			checkEnvironment(c)
-			checkDocker(cmd.Context(), c, kohaStack)
+			checkDocker(cmd.Context(), c, kohaStack, evergreenStack)
 			if c.failed {
 				return fmt.Errorf("some checks failed")
 			}
@@ -69,6 +71,7 @@ the docker daemon and compose, the koha-testing-docker network the default
 		},
 	}
 	cmd.Flags().StringVarP(&kohaStack, "koha-stack", "k", "kohadev", "koha-testing-docker stack adb up would connect to")
+	cmd.Flags().StringVarP(&evergreenStack, "evergreen-stack", "e", "egdev", "evergreen-testing-docker stack adb up would connect to")
 	return cmd
 }
 
@@ -113,7 +116,7 @@ func checkEnvFile(c *checkup) {
 	c.pass(".env found at %s", envPath)
 }
 
-func checkDocker(ctx context.Context, c *checkup, kohaStack string) {
+func checkDocker(ctx context.Context, c *checkup, kohaStack, evergreenStack string) {
 	runner, err := docker.NewRunner()
 	if err != nil {
 		c.fail("docker client: %v", err)
@@ -134,6 +137,7 @@ func checkDocker(ctx context.Context, c *checkup, kohaStack string) {
 	}
 
 	checkKohaNetwork(ctx, c, runner, kohaStack)
+	checkEvergreenNetwork(ctx, c, runner, evergreenStack)
 	checkProxyPorts(ctx, c, runner)
 }
 
@@ -149,6 +153,20 @@ func checkKohaNetwork(ctx context.Context, c *checkup, runner *docker.SDKRunner,
 		return
 	}
 	c.warn("network %s not found: start koha-testing-docker first, or use adb up --ils none", network)
+}
+
+func checkEvergreenNetwork(ctx context.Context, c *checkup, runner *docker.SDKRunner, evergreenStack string) {
+	network := evergreenStack + "_egnet"
+	exists, err := runner.NetworkExists(ctx, network)
+	if err != nil {
+		c.fail("inspect network %s: %v", network, err)
+		return
+	}
+	if exists {
+		c.pass("evergreen-testing-docker network %s present (--ils evergreen will work)", network)
+		return
+	}
+	c.warn("network %s not found: only needed for adb up --ils evergreen, start evergreen-testing-docker first", network)
 }
 
 func checkProxyPorts(ctx context.Context, c *checkup, runner *docker.SDKRunner) {
