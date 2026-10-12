@@ -25,7 +25,7 @@ func LogsCommand() *cobra.Command {
 main container. --include-indexing adds the indexing logs. --container shows
 the aspen container's own stdout instead: the entrypoint output, boot progress
 and the "Aspen dev box ready" banner. --service does the same for any other
-service of the stack (aspen-db, solr, koha-oauth-init, phpmyadmin).
+service of the stack (aspen-db, solr, koha-oauth-init, evergreen-import-init, phpmyadmin).
 
 Examples:
   adb logs -f
@@ -58,7 +58,7 @@ Examples:
 	cmd.Flags().BoolVarP(&includeIndexing, "include-indexing", "i", false, "Include indexing logs")
 	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "Follow logs in real-time")
 	cmd.Flags().BoolVarP(&containerOutput, "container", "c", false, "Show the aspen container's own output (entrypoint, boot banner) instead of the site logs")
-	cmd.Flags().StringVarP(&service, "service", "s", "", "Show the container output of another service of the stack (aspen-db, solr, koha-oauth-init, phpmyadmin)")
+	cmd.Flags().StringVarP(&service, "service", "s", "", "Show the container output of another service of the stack (aspen-db, solr, koha-oauth-init, evergreen-import-init, phpmyadmin)")
 
 	return cmd
 }
