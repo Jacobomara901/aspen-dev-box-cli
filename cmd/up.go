@@ -27,6 +27,7 @@ func UpCommand() *cobra.Command {
 	var pullUpdated bool
 	var kohaStack string
 	var kohaInstance string
+	var evergreenStack string
 	var ilsFlag string
 	var pluginsPath string
 	var plugins bool
@@ -39,7 +40,9 @@ func UpCommand() *cobra.Command {
 		Long: `Bring up the Docker Compose project with optional configurations.
 You can run in detached mode, with debugging enabled, or with the database GUI.
 The --ils flag accepts a preset name (koha, evergreen, ...), a path to a custom
-YAML config, or "none" to skip ILS setup entirely.`,
+YAML config, or "none" to skip ILS setup entirely. --koha-stack and
+--evergreen-stack name the koha-testing-docker and evergreen-testing-docker
+compose projects the preset connects to.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			files := []string{cfg.ComposeFilePath(config.DefaultComposeFile)}
@@ -56,7 +59,7 @@ YAML config, or "none" to skip ILS setup entirely.`,
 				files = append(files, cfg.ComposeFilePath(config.DBGUIComposeFile))
 			}
 
-			ilsFiles, err := setupILS(ilsFlag, kohaStack, kohaInstance, proxiedHost(noProxy, host))
+			ilsFiles, err := setupILS(ilsFlag, kohaStack, kohaInstance, evergreenStack, proxiedHost(noProxy, host))
 			if err != nil {
 				return err
 			}
@@ -112,6 +115,7 @@ YAML config, or "none" to skip ILS setup entirely.`,
 	cmd.Flags().BoolVarP(&pullUpdated, "pull", "p", false, "Pull the images for the project only if they have been updated")
 	cmd.Flags().StringVarP(&kohaStack, "koha-stack", "k", "", "Koha stack to connect to (default: kohadev)")
 	cmd.Flags().StringVar(&kohaInstance, "koha-instance", "", "Koha instance name inside the stack, i.e. KOHA_INSTANCE of its koha container (default: the stack name)")
+	cmd.Flags().StringVarP(&evergreenStack, "evergreen-stack", "e", "", "Evergreen stack (evergreen-testing-docker compose project) to connect to (default: egdev)")
 	cmd.Flags().StringVarP(&ilsFlag, "ils", "i", "koha", "ILS preset name, path to YAML config, or 'none'")
 	cmd.Flags().BoolVar(&plugins, "plugins", false, "Mount a plugins dir into the container and enable aspen plugin loading")
 	cmd.Flags().StringVar(&pluginsPath, "plugins-path", "", "Host path of plugins dir (default: $ASPEN_PLUGINS or $ASPEN_DOCKER/plugins)")
@@ -197,7 +201,7 @@ func setupPlugins(enabled bool, path string) ([]string, error) {
 	return []string{overlay}, nil
 }
 
-func setupILS(value, kohaStack, kohaInstance, siteName string) ([]string, error) {
+func setupILS(value, kohaStack, kohaInstance, evergreenStack, siteName string) ([]string, error) {
 	if value == "" || value == "none" {
 		return nil, nil
 	}
@@ -211,6 +215,11 @@ func setupILS(value, kohaStack, kohaInstance, siteName string) ([]string, error)
 	} else if os.Getenv("KOHA_INSTANCE") == "" {
 		os.Setenv("KOHA_INSTANCE", kohaStack)
 	}
+
+	if evergreenStack == "" {
+		evergreenStack = "egdev"
+	}
+	os.Setenv("EVERGREEN_STACK", evergreenStack)
 
 	configPath, err := ils.ResolvePath(value, filepath.Join(cfg.ProjectsDir, "ils"))
 	if err != nil {
