@@ -600,7 +600,7 @@ func summarizeStack(project string, inspect container.InspectResponse) StackSumm
 		if strings.HasSuffix(name, "_kohanet") {
 			summary.ILS = "koha"
 		}
-		if name == "evergreen-net" {
+		if strings.HasSuffix(name, "_egnet") {
 			summary.ILS = "evergreen"
 		}
 	}
