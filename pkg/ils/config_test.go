@@ -117,3 +117,33 @@ func writeFile(t *testing.T, path, content string) {
 		t.Fatal(err)
 	}
 }
+
+func TestLoadWithEnvExpandsThroughTheLookup(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "_base.yml"), `
+indexing_profile:
+  marcPath: /data/aspen-discovery/${SITE_NAME}/ils/marc
+`)
+	writeFile(t, filepath.Join(dir, "preset.yml"), `
+base: _base.yml
+driver: ${MISSING_VAR}
+`)
+	t.Setenv("SITE_NAME", "dev.localhost")
+
+	lookup := func(name string) (string, bool) {
+		if name == "SITE_NAME" {
+			return "localhost", true
+		}
+		return os.LookupEnv(name)
+	}
+	cfg, err := LoadWithEnv(filepath.Join(dir, "preset.yml"), lookup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.IndexingProfile["marcPath"] != "/data/aspen-discovery/localhost/ils/marc" {
+		t.Errorf("lookup not used in base: %v", cfg.IndexingProfile["marcPath"])
+	}
+	if cfg.Driver != "$MISSING_VAR" {
+		t.Errorf("unknown vars should stay literal, got %q", cfg.Driver)
+	}
+}

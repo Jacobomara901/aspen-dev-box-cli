@@ -17,8 +17,14 @@ type Config struct {
 	ExtrasSQL       string         `yaml:"extras_sql"`
 }
 
+type LookupEnvFunc func(string) (string, bool)
+
 func Load(path string) (*Config, error) {
-	cfg, err := loadOne(path)
+	return LoadWithEnv(path, os.LookupEnv)
+}
+
+func LoadWithEnv(path string, lookup LookupEnvFunc) (*Config, error) {
+	cfg, err := loadOne(path, lookup)
 	if err != nil {
 		return nil, err
 	}
@@ -26,20 +32,20 @@ func Load(path string) (*Config, error) {
 		return cfg, nil
 	}
 	basePath := filepath.Join(filepath.Dir(path), cfg.Base)
-	base, err := Load(basePath)
+	base, err := LoadWithEnv(basePath, lookup)
 	if err != nil {
 		return nil, fmt.Errorf("load base %s: %w", basePath, err)
 	}
 	return merge(base, cfg), nil
 }
 
-func loadOne(path string) (*Config, error) {
+func loadOne(path string, lookup LookupEnvFunc) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read ils config %s: %w", path, err)
 	}
 	expanded := os.Expand(string(data), func(name string) string {
-		if value, ok := os.LookupEnv(name); ok {
+		if value, ok := lookup(name); ok {
 			return value
 		}
 		return "$" + name

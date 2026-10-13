@@ -56,7 +56,7 @@ YAML config, or "none" to skip ILS setup entirely.`,
 				files = append(files, cfg.ComposeFilePath(config.DBGUIComposeFile))
 			}
 
-			ilsFiles, err := setupILS(ilsFlag, kohaStack, kohaInstance)
+			ilsFiles, err := setupILS(ilsFlag, kohaStack, kohaInstance, proxiedHost(noProxy, host))
 			if err != nil {
 				return err
 			}
@@ -132,12 +132,7 @@ func setupProxy(ctx context.Context, disabled bool, host string) ([]string, erro
 	if err != nil {
 		return nil, err
 	}
-	if host == "" && defaultInstance() {
-		host = "localhost"
-	}
-	if host == "" {
-		host = cfg.StackName + ".localhost"
-	}
+	host = proxiedHost(disabled, host)
 	url := os.Getenv("ASPEN_URL")
 	if url == "" {
 		url = "http://" + host
@@ -167,6 +162,19 @@ func setupProxiedDBGUI(dbgui, proxied bool) ([]string, error) {
 	return []string{overlay}, nil
 }
 
+func proxiedHost(disabled bool, host string) string {
+	if disabled {
+		return ""
+	}
+	if host != "" {
+		return host
+	}
+	if defaultInstance() {
+		return "localhost"
+	}
+	return cfg.StackName + ".localhost"
+}
+
 func defaultInstance() bool {
 	return worktreeName == "" && cfg.StackName == filepath.Base(cfg.ProjectsDir)
 }
@@ -189,7 +197,7 @@ func setupPlugins(enabled bool, path string) ([]string, error) {
 	return []string{overlay}, nil
 }
 
-func setupILS(value, kohaStack, kohaInstance string) ([]string, error) {
+func setupILS(value, kohaStack, kohaInstance, siteName string) ([]string, error) {
 	if value == "" || value == "none" {
 		return nil, nil
 	}
@@ -209,7 +217,7 @@ func setupILS(value, kohaStack, kohaInstance string) ([]string, error) {
 		return nil, err
 	}
 
-	ilsCfg, err := ils.Load(configPath)
+	ilsCfg, err := ils.LoadWithEnv(configPath, siteNameLookup(siteName))
 	if err != nil {
 		return nil, err
 	}
@@ -234,6 +242,15 @@ func setupILS(value, kohaStack, kohaInstance string) ([]string, error) {
 		}
 	}
 	return overlays, nil
+}
+
+func siteNameLookup(siteName string) ils.LookupEnvFunc {
+	return func(name string) (string, bool) {
+		if name == "SITE_NAME" && siteName != "" {
+			return siteName, true
+		}
+		return os.LookupEnv(name)
+	}
 }
 
 func pullImagesFromFiles(ctx context.Context, files []string) error {
